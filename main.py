@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.responses import FileResponse
+from packaging import version as pkg_version
 import os
 import shutil
 
@@ -26,10 +27,34 @@ def health():
     return {"status": "ok", "firmware_available": firmware_exists}
 
 @app.get("/version")
-def get_version(x_api_key: str = Header(None)):
+def get_version(
+    x_api_key: str = Header(None),
+    x_current_version: str = Header(None)
+):
     check_api_key(x_api_key)
+
+    if x_current_version:
+        try:
+            current = pkg_version.parse(x_current_version)
+            available = pkg_version.parse(CURRENT_VERSION)
+
+            if available < current:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Anti-rollback: available {CURRENT_VERSION} older than installed {x_current_version}"
+                )
+            if available == current:
+                return {
+                    "version": CURRENT_VERSION,
+                    "update_available": False,
+                    "message": "Already up to date"
+                }
+        except HTTPException:
+            raise
+
     return {
         "version": CURRENT_VERSION,
+        "update_available": True,
         "filename": "gateway-update.swu"
     }
 
