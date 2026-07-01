@@ -1,12 +1,16 @@
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.responses import FileResponse
 import os
+import shutil
 
 app = FastAPI(title="OTA Server")
 
 CURRENT_VERSION = "3.0.0"
 API_KEY = "moez-ota-secret-key-2026"
 FIRMWARE_PATH = "firmware/gateway-update.swu"
+UPLOAD_KEY = "moez-upload-secret-2026"
+
+os.makedirs("firmware", exist_ok=True)
 
 def check_api_key(x_api_key: str = Header(None)):
     if x_api_key != API_KEY:
@@ -15,6 +19,11 @@ def check_api_key(x_api_key: str = Header(None)):
 @app.get("/")
 def root():
     return {"service": "OTA Server", "status": "running"}
+
+@app.get("/health")
+def health():
+    firmware_exists = os.path.exists(FIRMWARE_PATH)
+    return {"status": "ok", "firmware_available": firmware_exists}
 
 @app.get("/version")
 def get_version(x_api_key: str = Header(None)):
@@ -35,6 +44,15 @@ def download_firmware(x_api_key: str = Header(None)):
         filename="gateway-update.swu"
     )
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+@app.post("/upload")
+async def upload_firmware(
+    file: UploadFile = File(...),
+    x_upload_key: str = Header(None)
+):
+    if x_upload_key != UPLOAD_KEY:
+        raise HTTPException(status_code=401, detail="Invalid upload key")
+    os.makedirs("firmware", exist_ok=True)
+    with open(FIRMWARE_PATH, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    size = os.path.getsize(FIRMWARE_PATH)
+    return {"status": "uploaded", "size_mb": round(size/1024/1024, 2)}
