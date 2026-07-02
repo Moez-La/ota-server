@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.responses import FileResponse
 from packaging import version as pkg_version
-import os, shutil, subprocess, re
+import os, shutil, re
 
 app = FastAPI(title="OTA Server")
 
@@ -12,13 +12,12 @@ UPLOAD_KEY = "moez-upload-secret-2026"
 os.makedirs("firmware", exist_ok=True)
 
 def get_version_from_swu():
-    """Lit la version directement depuis sw-description dans le .swu"""
+    """Lit la version depuis sw-description dans le .swu (Python pur)"""
     try:
-        result = subprocess.run(
-            ['sh', '-c', f'cpio -i --to-stdout sw-description < {FIRMWARE_PATH}'],
-            capture_output=True, text=True
-        )
-        match = re.search(r'version\s*=\s*"([^"]+)"', result.stdout)
+        with open(FIRMWARE_PATH, 'rb') as f:
+            content = f.read(16384)  # Premiers 16KB suffisent
+        text = content.decode('latin-1', errors='ignore')
+        match = re.search(r'version\s*=\s*"([^"]+)"', text)
         if match:
             return match.group(1)
     except:
