@@ -1,17 +1,29 @@
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.responses import FileResponse
 from packaging import version as pkg_version
-import os
-import shutil
+import os, shutil, subprocess, re
 
 app = FastAPI(title="OTA Server")
 
-CURRENT_VERSION = "3.0.0"
 API_KEY = "moez-ota-secret-key-2026"
 FIRMWARE_PATH = "firmware/gateway-update.swu"
 UPLOAD_KEY = "moez-upload-secret-2026"
 
 os.makedirs("firmware", exist_ok=True)
+
+def get_version_from_swu():
+    """Lit la version directement depuis sw-description dans le .swu"""
+    try:
+        result = subprocess.run(
+            ['sh', '-c', f'cpio -i --to-stdout sw-description < {FIRMWARE_PATH}'],
+            capture_output=True, text=True
+        )
+        match = re.search(r'version\s*=\s*"([^"]+)"', result.stdout)
+        if match:
+            return match.group(1)
+    except:
+        pass
+    return "0.0.0"
 
 def check_api_key(x_api_key: str = Header(None)):
     if x_api_key != API_KEY:
@@ -24,7 +36,12 @@ def root():
 @app.get("/health")
 def health():
     firmware_exists = os.path.exists(FIRMWARE_PATH)
-    return {"status": "ok", "firmware_available": firmware_exists}
+    version = get_version_from_swu() if firmware_exists else "none"
+    return {
+        "status": "ok",
+        "firmware_available": firmware_exists,
+        "firmware_version": version
+    }
 
 @app.get("/version")
 def get_version(
@@ -33,19 +50,21 @@ def get_version(
 ):
     check_api_key(x_api_key)
 
+    available = get_version_from_swu()
+
     if x_current_version:
         try:
             current = pkg_version.parse(x_current_version)
-            available = pkg_version.parse(CURRENT_VERSION)
+            avail = pkg_version.parse(available)
 
-            if available < current:
+            if avail < current:
                 raise HTTPException(
                     status_code=409,
-                    detail=f"Anti-rollback: available {CURRENT_VERSION} older than installed {x_current_version}"
+                    detail=f"Anti-rollback: available {available} older than installed {x_current_version}"
                 )
-            if available == current:
+            if avail == current:
                 return {
-                    "version": CURRENT_VERSION,
+                    "version": available,
                     "update_available": False,
                     "message": "Already up to date"
                 }
@@ -53,7 +72,7 @@ def get_version(
             raise
 
     return {
-        "version": CURRENT_VERSION,
+        "version": available,
         "update_available": True,
         "filename": "gateway-update.swu"
     }
@@ -80,4 +99,9 @@ async def upload_firmware(
     with open(FIRMWARE_PATH, "wb") as f:
         shutil.copyfileobj(file.file, f)
     size = os.path.getsize(FIRMWARE_PATH)
-    return {"status": "uploaded", "size_mb": round(size/1024/1024, 2)}
+    version = get_version_from_swu()
+    return {
+        "status": "uploaded",
+        "size_mb": round(size/1024/1024, 2),
+        "version": version
+    }
