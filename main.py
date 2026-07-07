@@ -94,6 +94,8 @@ async def upload_firmware(
 ):
     if x_upload_key != UPLOAD_KEY:
         raise HTTPException(status_code=401, detail="Invalid upload key")
+    if not file.filename.lower().endswith(".swu"):
+        raise HTTPException(status_code=400, detail="Only .swu files are allowed")
     os.makedirs("firmware", exist_ok=True)
     with open(FIRMWARE_PATH, "wb") as f:
         shutil.copyfileobj(file.file, f)
