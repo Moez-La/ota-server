@@ -5,9 +5,9 @@ import os, shutil, re
 
 app = FastAPI(title="OTA Server")
 
-API_KEY = "moez-ota-secret-key-2026"
+API_KEY = os.getenv("API_KEY")
 FIRMWARE_PATH = "firmware/gateway-update.swu"
-UPLOAD_KEY = "moez-upload-secret-2026"
+UPLOAD_KEY = os.getenv("UPLOAD_KEY")
 
 os.makedirs("firmware", exist_ok=True)
 
