@@ -1,9 +1,15 @@
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.responses import FileResponse
 from packaging import version as pkg_version
-import os, shutil, re
+import os, shutil, re, logging
+from fastapi import Request
 
 app = FastAPI(title="OTA Server")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s"
+)
+logger = logging.getLogger("ota-server")
 
 API_KEY = os.getenv("API_KEY")
 FIRMWARE_PATH = "firmware/gateway-update.swu"
@@ -89,6 +95,7 @@ def download_firmware(x_api_key: str = Header(None)):
 
 @app.post("/upload")
 async def upload_firmware(
+    request: Request,
     file: UploadFile = File(...),
     x_upload_key: str = Header(None)
 ):
@@ -101,6 +108,9 @@ async def upload_firmware(
         shutil.copyfileobj(file.file, f)
     size = os.path.getsize(FIRMWARE_PATH)
     version = get_version_from_swu()
+    logger.info(
+    f"UPLOAD OK | ip={request.client.host} | file={file.filename} | version={version} | size={round(size/1024/1024,2)} MB"
+    )
     return {
         "status": "uploaded",
         "size_mb": round(size/1024/1024, 2),
