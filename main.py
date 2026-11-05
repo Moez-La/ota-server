@@ -11,9 +11,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ota-server")
 
-API_KEY = os.getenv("API_KEY")
+API_KEY = os.environ["API_KEY"]
 FIRMWARE_PATH = "firmware/gateway-update.swu"
-UPLOAD_KEY = os.getenv("UPLOAD_KEY")
+UPLOAD_KEY = os.environ["UPLOAD_KEY"]
 
 os.makedirs("firmware", exist_ok=True)
 
